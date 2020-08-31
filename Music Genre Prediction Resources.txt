@@ -1,0 +1,3 @@
+Links to learn LSTM:
+1- https://www.youtube.com/watch?v=8HyCNIVRbSU
+2 - http://colah.github.io/posts/2015-08-Understanding-LSTMs/
