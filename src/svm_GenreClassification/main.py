@@ -5,24 +5,10 @@ from sklearn.preprocessing import StandardScaler
 import librosa
 import librosa.display
 from scipy import stats
-
+from libsvm.svmutil import *
 
 def normalize(x, axis=0):
     return sklearn.preprocessing.minmax_scale(x, axis=axis)
-
-
-genres = 'D:\genres\genres\genres'
-os.chdir(genres)
-for filename in os.listdir(os.getcwd()):
-    if not filename.endswith(".mf"):
-        os.chdir(filename)
-        for songs in os.listdir(os.getcwd()):
-            with open(os.path.join(os.getcwd(), songs), 'r') as f:
-                print(f.name)
-        os.chdir(genres)
-
-
-
 
 
 def calculate_features(song):
@@ -57,13 +43,13 @@ def calculate_features(song):
     features.append(np.max(spectral_novelty, axis=1))
 
     ###5 SPECTRAL BANDWITH
-    spectral_bandwidth_2 = np.array(librosa.feature.spectral_bandwidth(y+0.01, sr=sr)[0])
+    spectral_bandwidth_2 = np.array(librosa.feature.spectral_bandwidth(y + 0.01, sr=sr)[0])
     features.append(np.mean(spectral_bandwidth_2, axis=1))
     features.append(np.std(spectral_bandwidth_2, axis=1))
     features.append(stats.skew(spectral_bandwidth_2, axis=1))
     features.append(np.min(spectral_bandwidth_2, axis=1))
     features.append(np.max(spectral_bandwidth_2, axis=1))
-    spectral_bandwidth_3 = np.array(librosa.feature.spectral_bandwidth(y+0.01, sr=sr, p=3)[0])
+    spectral_bandwidth_3 = np.array(librosa.feature.spectral_bandwidth(y + 0.01, sr=sr, p=3)[0])
     features.append(np.mean(spectral_bandwidth_3, axis=1))
     features.append(np.std(spectral_bandwidth_3, axis=1))
     features.append(stats.skew(spectral_bandwidth_3, axis=1))
@@ -87,7 +73,7 @@ def calculate_features(song):
     features.append(np.min(zero_crossing_rate, axis=1))
     features.append(np.max(zero_crossing_rate, axis=1))
 
-    cqt = np.abs(librosa.cqt(y, sr=sr, hop_length=512, bins_per_octave=12, n_bins=7*12, tuning=None))
+    cqt = np.abs(librosa.cqt(y, sr=sr, hop_length=512, bins_per_octave=12, n_bins=7 * 12, tuning=None))
 
     chroma_cqt = librosa.feature.chroma_cqt(C=cqt, n_chroma=12, n_octaves=7)
     features.append(np.mean(chroma_cqt, axis=1))
@@ -110,7 +96,7 @@ def calculate_features(song):
     features.append(np.min(tonnetz, axis=1))
     features.append(np.max(tonnetz, axis=1))
 
-    chroma_stft = librosa.feature.chroma_stft(S=stft**2, n_chroma=12)
+    chroma_stft = librosa.feature.chroma_stft(S=stft ** 2, n_chroma=12)
     features.append(np.mean(chroma_stft, axis=1))
     features.append(np.std(chroma_stft, axis=1))
     features.append(stats.skew(chroma_stft, axis=1))
@@ -124,7 +110,7 @@ def calculate_features(song):
     features.append(np.min(rmse, axis=1))
     features.append(np.max(rmse, axis=1))
 
-    melspectrogram = librosa.feature.melspectrogram(sr=sr, S=stft**2)
+    melspectrogram = librosa.feature.melspectrogram(sr=sr, S=stft ** 2)
     features.append(np.mean(melspectrogram, axis=1))
     features.append(np.std(melspectrogram, axis=1))
     features.append(stats.skew(melspectrogram, axis=1))
@@ -137,4 +123,20 @@ def calculate_features(song):
     features.append(stats.skew(mfcc, axis=1))
     features.append(np.min(mfcc, axis=1))
     features.append(np.max(mfcc, axis=1))
+
+    return features
+
+
+all_features = []
+genres = 'D:\genres\genres\genres'
+os.chdir(genres)
+for filename in os.listdir(os.getcwd()):
+    if not filename.endswith(".mf"):
+        os.chdir(filename)
+        for songs in os.listdir(os.getcwd()):
+            with open(os.path.join(os.getcwd(), songs), 'r') as f:
+                all_features.append(calculate_features(f.name))
+        os.chdir(genres)
+
+
 
