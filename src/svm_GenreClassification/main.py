@@ -1,3 +1,6 @@
+#                   “Music is nothing else but wild sounds civilized into time and tune.”
+#                                              Thomas Fuller
+
 import numpy as np
 import os
 import sklearn
@@ -33,6 +36,8 @@ genre_name_list = [
 
 def calculate_features(song):
     y, sr = librosa.load(song)
+    # print("song")
+    # print(np.shape(y))
     data = np.zeros(
         (timeseries_length, 64), dtype=np.float64
     )
@@ -40,6 +45,8 @@ def calculate_features(song):
     mfcc = librosa.feature.mfcc(
         y=y, sr=sr, hop_length=hop_length, n_mfcc=13
     )
+    # print(np.shape(mfcc))
+    # print(mfcc)
     spectral_center = librosa.feature.spectral_centroid(
         y=y, sr=sr, hop_length=hop_length
     )
@@ -72,27 +79,50 @@ def calculate_features(song):
 
     return data
 
+
+def minimize_data(arr):
+    return arr[:200, :timeseries_length, :]
+
+
 all_features = []
 all_labels = []
 label = 0
-genres = 'D:\genres\genres\genres'
-os.chdir(genres)
-# inc = 0
-for filename in os.listdir(os.getcwd()):
-    if not filename.endswith(".mf"):
-        os.chdir(filename)
-        print(filename)
-        for songs in os.listdir(os.getcwd()):
-            with open(os.path.join(os.getcwd(), songs), 'r') as f:
-                all_features.append(calculate_features(f.name))
-                all_labels.append(label)
-            # inc+=1
-            # if (inc%2==0):
-            #     break
-        label += 1
-        os.chdir(genres)
+genres = "D:\Downloads\genres"
 
-# print(np.shape(all_features))
+os.chdir(genres)
+
+if os.path.isfile('alllabels.npy'):
+    print('yes')
+    all_features = np.load('allfeatures.npy')
+    all_features = minimize_data(all_features)
+    print(np.shape(all_features))
+    all_labels = np.load('alllabels.npy')
+    print(np.shape(all_labels))
+    all_labels = all_labels[:200]
+    print(np.shape(all_labels))
+
+else:
+    print('no')
+    inc = 0
+    for filename in os.listdir(os.getcwd()):
+        if not filename.endswith(".mf"):
+            os.chdir(filename)
+            print(filename)
+            for songs in os.listdir(os.getcwd()):
+                with open(os.path.join(os.getcwd(), songs), 'r') as f:
+                    all_features.append(calculate_features(f.name))
+                    all_labels.append(label)
+                # inc+=1
+                # if (inc%2==0):
+                #     break
+            label += 1
+            os.chdir(genres)
+
+    print(np.shape(all_features))
+
+    np.save('allfeatures.npy', all_features)
+    np.save('alllabels.npy', all_labels)
+    print('datasaved')
 
 c = list(zip(all_features, all_labels))
 random.shuffle(c)
@@ -100,7 +130,7 @@ all_features, all_labels = zip(*c)
 all_labels = to_categorical(all_labels)
 all_features = np.array(all_features)
 all_labels = np.array(all_labels)
-print(all_labels)
+# print(all_labels)
 
 trainData = all_features[:150]
 testData = all_features[150:]
@@ -108,28 +138,26 @@ trainLabels = all_labels[:150]
 testLabels = all_labels[150:]
 
 model = Sequential()
-model.add(LSTM(units=16, dropout=0.05, recurrent_dropout=0.35, return_sequences=True, input_shape=(1200, 64)))
-model.add(LSTM(units=8,  dropout=0.05, recurrent_dropout=0.35, return_sequences=False))
+model.add(LSTM(units=64, dropout=0.35, recurrent_dropout=0.35, return_sequences=False, input_shape=(timeseries_length, 64)))
+# model.add(LSTM(units=8, dropout=0.35, recurrent_dropout=0.35, return_sequences=False))
 model.add(Dense(units=all_labels.shape[1], activation="softmax"))
 print("Compiling.")
 
 opt = Adam(lr=0.01)
 # opt = SGD(lr=0.01)
-model.compile(loss="binary_crossentropy", optimizer=opt, metrics=["accuracy"])
+model.compile(loss="categorical_crossentropy", optimizer=opt, metrics=["accuracy"])
 model.summary()
 
 print("Training ...")
 batch_size = 100  # num of training examples per minibatch
-num_epochs = 5
+num_epochs = 20
 
 print(np.shape(trainData))
 print(np.shape(trainLabels))
 
 model.fit(trainData, trainLabels, epochs=num_epochs, batch_size=batch_size, validation_data=(testData, testLabels))
 
-
 print("\nTesting ...")
 score, accuracy = model.evaluate(testData, testLabels, batch_size=batch_size, verbose=1)
 print("Test loss:  ", score)
 print("Test accuracy:  ", accuracy)
-
