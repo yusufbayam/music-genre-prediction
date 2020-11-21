@@ -12,23 +12,34 @@ from keras.models import Sequential
 from keras.layers.recurrent import LSTM
 from keras.layers import Dense, Embedding
 from keras.optimizers import Adam, SGD
+from keras.optimizers import Adadelta
+from tensorflow.python.keras.regularizers import l2
 from tensorflow.python.keras.utils.np_utils import to_categorical
+from operator import add
+import matplotlib.pyplot as plt
+from sklearn import preprocessing
+from sklearn.feature_selection import SelectKBest
+from sklearn.feature_selection import f_classif
 
-timeseries_length = 1200
+
+
+timeseries_length = 300
 hop_length = 512
 
-genre_name_list = [
-    "blues",
-    "classical",
-    "country",
-    "disco",
-    "hiphop",
-    "jazz",
-    "metal",
-    "pop",
-    "reggae",
-    "rock",
-]
+
+def concentrate_time(features):
+    count = 1
+    data = []
+    temp = np.zeros(64)
+    for i in features:
+        temp = list(map(add, temp, i))
+        if(count % 4 == 0):
+            temp = np.divide(temp,4)
+            data.append(temp)
+            temp = np.zeros(64)
+        count += 1
+    return data
+
 
 
 def calculate_features(song):
@@ -55,13 +66,11 @@ def calculate_features(song):
     rmse = librosa.feature.rms(S=stft)
 
     tonnetz = librosa.feature.tonnetz(chroma=chroma_cens)
-    # print("tonnetz: ",np.shape(tonnetz))
 
     # librosa.feature.spectral_rolloff()
     # librosa.feature.zero_crossing_rate()
-    # librosa.feature.tonnetz()
 
-    data[0:timeseries_length, 0:13] = mfcc.T[0:timeseries_length, :]
+    data[:timeseries_length, 0:13] = mfcc.T[0:timeseries_length, :]
     data[:timeseries_length, 13:14] = spectral_center.T[0:timeseries_length, :]
     data[:timeseries_length, 14:26] = chroma.T[0:timeseries_length, :]
     data[:timeseries_length, 26:33] = spectral_contrast.T[0:timeseries_length, :]
@@ -70,29 +79,51 @@ def calculate_features(song):
     data[:timeseries_length, 57:58] = rmse.T[0:timeseries_length, :]
     data[:timeseries_length, 58:64] = tonnetz.T[0:timeseries_length, :]
 
-    return data
+
+    return concentrate_time(data)
 
 all_features = []
 all_labels = []
 label = 0
 genres = 'D:\genres\genres\genres'
 os.chdir(genres)
-# inc = 0
-for filename in os.listdir(os.getcwd()):
-    if not filename.endswith(".mf"):
-        os.chdir(filename)
-        print(filename)
-        for songs in os.listdir(os.getcwd()):
-            with open(os.path.join(os.getcwd(), songs), 'r') as f:
-                all_features.append(calculate_features(f.name))
-                all_labels.append(label)
-            # inc+=1
-            # if (inc%2==0):
-            #     break
-        label += 1
-        os.chdir(genres)
+if os.path.isfile('alllabels.npy'):
+    print('yes')
+    all_features = np.load('allfeatures.npy')
+    all_labels = np.load('alllabels.npy')
 
-# print(np.shape(all_features))
+else:
+    print('no')
+    inc = 0
+    for filename in os.listdir(os.getcwd()):
+        if not filename.endswith(".mf"):
+            os.chdir(filename)
+            print(filename)
+            for songs in os.listdir(os.getcwd()):
+                with open(os.path.join(os.getcwd(), songs), 'r') as f:
+                    all_features.append(calculate_features(f.name))
+                    all_labels.append(label)
+                # inc+=1
+                # if (inc%2==0):
+                #     break
+            label += 1
+            os.chdir(genres)
+
+    np.save('allfeatures.npy', all_features)
+    np.save('alllabels.npy', all_labels)
+    print('datasaved')
+
+# all_features = all_features[:300]
+# all_labels = all_labels[:300]
+# pca = decomposition.PCA(n_components=3)
+# pca.fit(X)
+# X = pca.transform(X)
+temp = []
+for i in all_features:
+    min_max_scaler = preprocessing.MinMaxScaler()
+    temp.append(min_max_scaler.fit_transform(i))
+all_features = temp
+
 
 c = list(zip(all_features, all_labels))
 random.shuffle(c)
@@ -100,36 +131,47 @@ all_features, all_labels = zip(*c)
 all_labels = to_categorical(all_labels)
 all_features = np.array(all_features)
 all_labels = np.array(all_labels)
-print(all_labels)
 
-trainData = all_features[:150]
-testData = all_features[150:]
-trainLabels = all_labels[:150]
-testLabels = all_labels[150:]
 
+trainData = all_features[:800]
+testData = all_features[800:]
+trainLabels = all_labels[:800]
+testLabels = all_labels[800:]
+print(all_labels.shape[1])
 model = Sequential()
-model.add(LSTM(units=16, dropout=0.05, recurrent_dropout=0.35, return_sequences=True, input_shape=(1200, 64)))
-model.add(LSTM(units=8,  dropout=0.05, recurrent_dropout=0.35, return_sequences=False))
-model.add(Dense(units=all_labels.shape[1], activation="softmax"))
+model.add(LSTM(units=64, dropout=0.05, recurrent_dropout=0.35, return_sequences=True, input_shape=(timeseries_length, 64)))
+# model.add(layers.SpatialDropout1D(0.2))
+
+model.add(LSTM(units=8, return_sequences=False))
+model.add(Dense(units=all_labels.shape[1], activation="softmax", kernel_regularizer=l2(0.001)))
+# model.add(keras.layers.Dropout(0.2))
 print("Compiling.")
 
 opt = Adam(lr=0.01)
-# opt = SGD(lr=0.01)
-model.compile(loss="binary_crossentropy", optimizer=opt, metrics=["accuracy"])
+
+model.compile(loss="categorical_crossentropy", optimizer=opt, metrics=["accuracy"])
 model.summary()
 
 print("Training ...")
-batch_size = 100  # num of training examples per minibatch
-num_epochs = 5
+batch_size = 64  # num of training examples per minibatch
+num_epochs = 200
 
-print(np.shape(trainData))
-print(np.shape(trainLabels))
 
-model.fit(trainData, trainLabels, epochs=num_epochs, batch_size=batch_size, validation_data=(testData, testLabels))
-
+history = model.fit(trainData, trainLabels, validation_split=0.33, epochs=num_epochs, batch_size=batch_size,)
+# selector = SelectKBest(f_classif, k=10)
+# selected_features = selector.fit_transform(trainData, trainLabels)
+# print(selected_features)
 
 print("\nTesting ...")
 score, accuracy = model.evaluate(testData, testLabels, batch_size=batch_size, verbose=1)
 print("Test loss:  ", score)
 print("Test accuracy:  ", accuracy)
 
+print(history.history.keys())
+plt.plot(history.history['accuracy'])
+plt.plot(history.history['val_accuracy'])
+plt.title('model accuracy')
+plt.ylabel('accuracy')
+plt.xlabel('epoch')
+plt.legend(['train', 'test'], loc='upper left')
+plt.show()
