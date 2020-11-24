@@ -11,20 +11,35 @@ from tensorflow.keras import layers
 from keras.models import Sequential
 from keras.layers.recurrent import LSTM
 from keras.layers import Dense, Embedding
-from keras.optimizers import Adam, SGD
-from keras.optimizers import Adadelta
+from keras.optimizers import Adam, SGD, Adadelta
 from tensorflow.python.keras.regularizers import l2
 from tensorflow.python.keras.utils.np_utils import to_categorical
 from operator import add
 import matplotlib.pyplot as plt
 from sklearn import preprocessing
-from sklearn.feature_selection import SelectKBest
-from sklearn.feature_selection import f_classif
+from sklearn.decomposition import PCA
 
 
 
 timeseries_length = 300
 hop_length = 512
+
+def calculate_PCA(data):
+    pca = PCA(n_components=50)
+    pri_comp = pca.fit_transform(data)
+
+def arrange_shape(data):
+    data = np.random.randint(0, 10, (2, 3, 4))
+    print(np.shape(data))
+    temp1 = []
+    temp2 = []
+    for i in range(data.shape[1]):
+        for k in range(data.shape[0]):
+            temp1.append(data[k, i, :])
+
+        temp2.append(temp1)
+        temp1 = []
+    print(np.shape(temp2))
 
 
 def concentrate_time(features):
@@ -82,6 +97,7 @@ def calculate_features(song):
 
     return concentrate_time(data)
 
+
 all_features = []
 all_labels = []
 label = 0
@@ -137,7 +153,7 @@ trainData = all_features[:800]
 testData = all_features[800:]
 trainLabels = all_labels[:800]
 testLabels = all_labels[800:]
-print(all_labels.shape[1])
+
 model = Sequential()
 model.add(LSTM(units=64, dropout=0.05, recurrent_dropout=0.35, return_sequences=True, input_shape=(timeseries_length, 64)))
 # model.add(layers.SpatialDropout1D(0.2))
@@ -154,7 +170,7 @@ model.summary()
 
 print("Training ...")
 batch_size = 64  # num of training examples per minibatch
-num_epochs = 200
+num_epochs = 2
 
 
 history = model.fit(trainData, trainLabels, validation_split=0.33, epochs=num_epochs, batch_size=batch_size,)
@@ -175,3 +191,5 @@ plt.ylabel('accuracy')
 plt.xlabel('epoch')
 plt.legend(['train', 'test'], loc='upper left')
 plt.show()
+
+
