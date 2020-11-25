@@ -21,25 +21,33 @@ from sklearn.decomposition import PCA
 
 
 
-timeseries_length = 300
+timeseries_length = 1200
 hop_length = 512
 
 def calculate_PCA(data):
+    temp = []
+    print(np.shape(data))
+    data = arrange_shape(data)
+    print(np.shape(data))
+
     pca = PCA(n_components=50)
-    pri_comp = pca.fit_transform(data)
+    for i in data:
+
+        pri_comp = pca.fit_transform(i)
+        temp.append(pri_comp)
+    return arrange_shape(temp)
 
 def arrange_shape(data):
-    data = np.random.randint(0, 10, (2, 3, 4))
-    print(np.shape(data))
     temp1 = []
     temp2 = []
+    data = np.array(data)
     for i in range(data.shape[1]):
         for k in range(data.shape[0]):
             temp1.append(data[k, i, :])
 
         temp2.append(temp1)
         temp1 = []
-    print(np.shape(temp2))
+    return temp2
 
 
 def concentrate_time(features):
@@ -139,7 +147,9 @@ for i in all_features:
     min_max_scaler = preprocessing.MinMaxScaler()
     temp.append(min_max_scaler.fit_transform(i))
 all_features = temp
-
+print(np.shape(all_features))
+all_features = calculate_PCA(all_features)
+print(np.shape(all_features))
 
 c = list(zip(all_features, all_labels))
 random.shuffle(c)
@@ -153,9 +163,9 @@ trainData = all_features[:800]
 testData = all_features[800:]
 trainLabels = all_labels[:800]
 testLabels = all_labels[800:]
-
+timeseries_length = int(timeseries_length / 4)
 model = Sequential()
-model.add(LSTM(units=64, dropout=0.05, recurrent_dropout=0.35, return_sequences=True, input_shape=(timeseries_length, 64)))
+model.add(LSTM(units=64, dropout=0.05, recurrent_dropout=0.35, return_sequences=True, input_shape=(timeseries_length, all_features.shape[2])))
 # model.add(layers.SpatialDropout1D(0.2))
 
 model.add(LSTM(units=8, return_sequences=False))
@@ -170,10 +180,10 @@ model.summary()
 
 print("Training ...")
 batch_size = 64  # num of training examples per minibatch
-num_epochs = 2
+num_epochs = 50
 
 
-history = model.fit(trainData, trainLabels, validation_split=0.33, epochs=num_epochs, batch_size=batch_size,)
+history = model.fit(trainData, trainLabels, validation_split=0.33, epochs=num_epochs, batch_size=batch_size, shuffle=True)
 # selector = SelectKBest(f_classif, k=10)
 # selected_features = selector.fit_transform(trainData, trainLabels)
 # print(selected_features)
