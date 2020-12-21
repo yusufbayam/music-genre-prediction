@@ -64,7 +64,7 @@ def calculate_features(song):
     # chroma_cqt = librosa.feature.chroma_cqt(C=cqt, n_chroma=12, n_octaves=7)
     # chroma_cens = librosa.feature.chroma_cens(C=cqt, n_chroma=12, n_octaves=7)
 
-    stft = np.abs(librosa.stft(y, n_fft=2048, hop_length=512))
+    stft = np.abs(librosa.stft(y, n_fft=2048, hop_length=hop_length))
     rmse = librosa.feature.rms(S=stft)
 
     # tonnetz = librosa.feature.tonnetz(chroma=chroma_cens)
@@ -79,7 +79,7 @@ def calculate_features(song):
 
     melspectrogram = librosa.feature.melspectrogram(y=y, sr=sr)
 
-    data[:timeseries_length, 0:40] = mfcc.T[0:timeseries_length, :]
+    data[:timeseries_length, 0:40] = mfcc.T[500:timeseries_length+500, :]
     # data[:timeseries_length, 40:41] = spectral_center.T[0:timeseries_length, :]
     # data[:timeseries_length, 41:53] = chroma.T[0:timeseries_length, :]
     # data[:timeseries_length, 53:60] = spectral_contrast.T[0:timeseries_length, :]
@@ -128,9 +128,6 @@ else:
     np.save('alllabels.npy', all_labels)
     print('datasaved')
 
-print(np.shape(all_labels))
-print(all_labels)
-
 c = list(zip(all_features, all_labels))
 random.shuffle(c)
 all_features, all_labels = zip(*c)
@@ -144,16 +141,15 @@ testData = all_features[800:]
 trainLabels = all_labels[:800]
 testLabels = all_labels[800:]
 
-# temp = []
-# for i in trainData:
-#     min_max_scaler = preprocessing.MinMaxScaler()
-#     temp.append(min_max_scaler.fit_transform(i))  #TODO Check scaler
-# trainData = np.array(temp)
+scaler = preprocessing.MinMaxScaler(feature_range=(0, 1))
+# trainData = scaler.fit_transform(trainData.reshape(trainData.shape[0], -1)).reshape(trainData.shape)
+print(np.shape(trainData))
 
 model = Sequential()
-model.add(LSTM(units=256, recurrent_dropout=0.05, return_sequences=False,
+model.add(LSTM(units=256, recurrent_dropout=0.05, return_sequences=True,
                input_shape=(timeseries_length, all_features.shape[2])))
-model.add(Dropout(0.6))
+model.add(Dropout(0.3))
+model.add(LSTM(units=64, recurrent_dropout=0.05, return_sequences=False))
 model.add(Dense(units=all_labels.shape[1], activation="softmax"))
 
 opt = Adam()
