@@ -51,7 +51,7 @@ def calculate_features(song):
     )
 
     mfcc = librosa.feature.mfcc(
-        y=y, sr=sr, hop_length=hop_length, n_mfcc=40
+        y=y, sr=sr, n_mfcc=40
     )
     spectral_center = librosa.feature.spectral_centroid(
         y=y, sr=sr, hop_length=hop_length
@@ -112,16 +112,15 @@ else:
             os.chdir(filename)
             print(filename)
             song_count = 0
-            label = label + 1
             for songs in os.listdir(os.getcwd()):
                 if song_count < 500:
                     with open(os.path.join(os.getcwd(), songs), 'r') as f:
                         all_features.append(calculate_features(f.name))
-                        print(np.shape(all_features))
                         all_labels.append(int(label))
                     song_count = song_count + 1
                 else:
                     break
+            label = label + 1
             os.chdir(genres)
 
     np.save('allfeatures.npy', all_features)
@@ -134,32 +133,30 @@ all_features, all_labels = zip(*c)
 all_labels = to_categorical(all_labels)
 all_features = np.array(all_features)
 all_labels = np.array(all_labels)
-print(np.shape(all_features))
+
+scaler = preprocessing.MinMaxScaler(feature_range=(0, 1))
+# all_features = scaler.fit_transform(all_features.reshape(all_features.shape[0], -1)).reshape(all_features.shape)
 
 trainData = all_features[:800]
 testData = all_features[800:]
 trainLabels = all_labels[:800]
 testLabels = all_labels[800:]
 
-scaler = preprocessing.MinMaxScaler(feature_range=(0, 1))
-# trainData = scaler.fit_transform(trainData.reshape(trainData.shape[0], -1)).reshape(trainData.shape)
-print(np.shape(trainData))
-
 model = Sequential()
-model.add(LSTM(units=256, recurrent_dropout=0.05, return_sequences=True,
+model.add(LSTM(units=256, recurrent_dropout=0.01, return_sequences=True,
                input_shape=(timeseries_length, all_features.shape[2])))
-model.add(Dropout(0.3))
-model.add(LSTM(units=64, recurrent_dropout=0.05, return_sequences=False))
+model.add(LSTM(units=256, recurrent_dropout=0.01))
+model.add(Dropout(0.5))
 model.add(Dense(units=all_labels.shape[1], activation="softmax"))
 
-opt = Adam()
+opt = Adam(learning_rate=0.001)
 
 model.compile(loss="categorical_crossentropy", optimizer=opt, metrics=["accuracy"])
 model.summary()
 
 print("Training ...")
 batch_size = 256  # num of training examples per minibatch
-num_epochs = 600
+num_epochs = 20
 
 # define your model
 history = model.fit(trainData, trainLabels, validation_split=0.125, epochs=num_epochs,
@@ -171,10 +168,10 @@ print("Test loss:  ", score)
 print("Test accuracy:  ", accuracy)
 
 print(history.history.keys())
-plt.plot(history.history['accuracy'])
-plt.plot(history.history['val_accuracy'])
-plt.title('model accuracy')
-plt.ylabel('accuracy')
+plt.plot(history.history['loss'])
+plt.plot(history.history['val_loss'])
+plt.title('model loss')
+plt.ylabel('loss')
 plt.xlabel('epoch')
 plt.legend(['train', 'test'], loc='upper left')
 plt.show()
