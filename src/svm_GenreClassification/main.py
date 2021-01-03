@@ -7,6 +7,7 @@ from keras.models import Sequential
 from keras.layers.recurrent import LSTM
 from keras.layers import Dense, Dropout
 from keras.optimizers import Adam, SGD, Adadelta
+from tensorflow.python.keras.models import load_model, model_from_json
 from tensorflow.python.keras.utils.np_utils import to_categorical
 import matplotlib.pyplot as plt
 from sklearn import preprocessing
@@ -79,7 +80,7 @@ def calculate_features(song):
 
     melspectrogram = librosa.feature.melspectrogram(y=y, sr=sr)
 
-    data[:timeseries_length, 0:40] = mfcc.T[500:timeseries_length+500, :]
+    data[:timeseries_length, 0:40] = mfcc.T[0:timeseries_length, :]
     # data[:timeseries_length, 40:41] = spectral_center.T[0:timeseries_length, :]
     # data[:timeseries_length, 41:53] = chroma.T[0:timeseries_length, :]
     # data[:timeseries_length, 53:60] = spectral_contrast.T[0:timeseries_length, :]
@@ -95,7 +96,7 @@ def calculate_features(song):
 
     return data
 
-genres = 'D:\Downloads\genres'
+genres = 'D:\Downloads\genres_new'
 os.chdir(genres)
 if os.path.isfile('alllabels.npy'):
     print('yes')
@@ -136,42 +137,76 @@ all_labels = np.array(all_labels)
 
 scaler = preprocessing.MinMaxScaler(feature_range=(0, 1))
 # all_features = scaler.fit_transform(all_features.reshape(all_features.shape[0], -1)).reshape(all_features.shape)
+print(np.shape(all_features))
 
-trainData = all_features[:800]
-testData = all_features[800:]
-trainLabels = all_labels[:800]
-testLabels = all_labels[800:]
-
-model = Sequential()
-model.add(LSTM(units=256, recurrent_dropout=0.01, return_sequences=True,
-               input_shape=(timeseries_length, all_features.shape[2])))
-model.add(LSTM(units=256, recurrent_dropout=0.01))
-model.add(Dropout(0.5))
-model.add(Dense(units=all_labels.shape[1], activation="softmax"))
+trainData = all_features[:4000]
+testData = all_features[4000:]
+trainLabels = all_labels[:4000]
+testLabels = all_labels[4000:]
 
 opt = Adam(learning_rate=0.001)
 
-model.compile(loss="categorical_crossentropy", optimizer=opt, metrics=["accuracy"])
-model.summary()
+if os.path.isfile('model.json'):
+    # load json and create model
+    json_file = open('model.json', 'r')
+    loaded_model_json = json_file.read()
+    json_file.close()
+    loaded_model = model_from_json(loaded_model_json)
+    # load weights into new model
+    loaded_model.load_weights("model.h5")
+    print("Loaded model from disk")
+    # evaluate loaded model on test data
+    loaded_model.compile(loss='categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
+    predictData = loaded_model.predict(testData)
+    print(np.shape(predictData))
+    pred_labels = []
+    counter = 0
+    for i in range(len(predictData)):
+        pred_index = np.argmax(predictData[i])
+        test_index = np.argmax(testLabels[i])
 
-print("Training ...")
-batch_size = 256  # num of training examples per minibatch
-num_epochs = 20
+        print("pred index: ", pred_index, " test index : ", test_index)
 
-# define your model
-history = model.fit(trainData, trainLabels, validation_split=0.125, epochs=num_epochs,
-                    batch_size=batch_size, shuffle=True)
+        if pred_index == test_index:
+            counter = counter + 1
+    acc = counter / np.size(testLabels[0])
+    print("Accuracy: ", acc)
+else:
+    model = Sequential()
+    model.add(LSTM(units=256, recurrent_dropout=0.01, return_sequences=True,
+                   input_shape=(timeseries_length, all_features.shape[2])))
+    model.add(LSTM(units=256, recurrent_dropout=0.01))
+    model.add(Dropout(0.7))
+    model.add(Dense(units=all_labels.shape[1], activation="softmax"))
 
-print("\nTesting ...")
-score, accuracy = model.evaluate(testData, testLabels, batch_size=batch_size, verbose=1)
-print("Test loss:  ", score)
-print("Test accuracy:  ", accuracy)
+    model.compile(loss="categorical_crossentropy", optimizer=opt, metrics=["accuracy"])
+    model.summary()
 
-print(history.history.keys())
-plt.plot(history.history['loss'])
-plt.plot(history.history['val_loss'])
-plt.title('model loss')
-plt.ylabel('loss')
-plt.xlabel('epoch')
-plt.legend(['train', 'test'], loc='upper left')
-plt.show()
+    print("Training ...")
+    batch_size = 256  # num of training examples per minibatch
+    num_epochs = 100
+
+    # define your model
+    history = model.fit(trainData, trainLabels, validation_split=0.125, epochs=num_epochs,
+                        batch_size=batch_size, shuffle=True)
+
+    print("\nTesting ...")
+    score, accuracy = model.evaluate(testData, testLabels, batch_size=batch_size, verbose=1)
+    print("Test loss:  ", score)
+    print("Test accuracy:  ", accuracy)
+
+    print(history.history.keys())
+    plt.plot(history.history['loss'])
+    plt.plot(history.history['val_loss'])
+    plt.title('model loss')
+    plt.ylabel('loss')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'test'], loc='upper left')
+    plt.show()
+
+    model_json = model.to_json()
+    with open("model.json", "w") as json_file:
+        json_file.write(model_json)
+    model.save_weights("model.h5")
+    print("Saved model to disk")
+

@@ -68,26 +68,40 @@ def plotList(songList):
 timeseries_length = 100
 num_of_features = 91
 hop_length = 512
+song_length = 661500
 
-# genres = 'D:\Downloads\genres'
-# os.chdir(genres)
-# for filename in os.listdir(os.getcwd()):
-#     if not filename.endswith(".mf"):
-#         os.chdir(filename)
-#         print(filename)
-#         for songs in os.listdir(os.getcwd()):
-#             with open(os.path.join(os.getcwd(), songs), 'r') as f:
-#                 y, sr = librosa.load(f.name)
-#                 split = librosa.effects.split(y, 20)
-#                 if np.size(split) > 1:
-#                     print(np.shape(split))
-#         os.chdir(genres)
+genres = 'D:\Downloads\genres'
+os.chdir(genres)
+for filename in os.listdir(os.getcwd()):
+    if not (filename.endswith(".mf")) or (filename.endswith(".npy")):
+        os.chdir(filename)
+        print(filename)
+        song_count = 0
+        for songs in os.listdir(os.getcwd()):
+            with open(os.path.join(os.getcwd(), songs), 'r') as f:
+                print(f.name, " song_count : ", song_count)
+                y, sr = librosa.load(f.name)
+                song1 = y[0:132300]
+                song2 = y[132300: 264600]
+                song3 = y[264600:396900]
+                song4 = y[396900:529200]
+                song5 = y[529200:661500]
+                sf.write(f'D:\\Downloads\\genres\\{filename}\\{filename+"_new"}{song_count}.wav', song1, sr)
+                sf.write(f'D:\\Downloads\\genres\\{filename}\\{filename+"_new"}{song_count+1}.wav', song2, sr)
+                sf.write(f'D:\\Downloads\\genres\\{filename}\\{filename+"_new"}{song_count+2}.wav', song3, sr)
+                sf.write(f'D:\\Downloads\\genres\\{filename}\\{filename + "_new"}{song_count + 3}.wav', song4, sr)
+                sf.write(f'D:\\Downloads\\genres\\{filename}\\{filename + "_new"}{song_count + 4}.wav', song5, sr)
+                song_count = song_count + 5
+                # split = librosa.effects.split(y, 20)
+                # if np.size(split) > 1:
+                #     print(np.shape(split))
+        os.chdir(genres)
 
 
-sample_song_list = createSampleSongList()
-same_genre_sample_list = createSameGenreSampleList('jazz')
-
-plotList(same_genre_sample_list)
+# sample_song_list = createSampleSongList()
+# same_genre_sample_list = createSameGenreSampleList('jazz')
+#
+# plotList(same_genre_sample_list)
 
 # song = 'D:\\Downloads\\genres\\country\\country.00065.wav'
 # y, sr = librosa.load(song)
