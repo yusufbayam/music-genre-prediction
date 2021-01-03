@@ -14,11 +14,11 @@ from keras.models import model_from_json
 from sklearn import svm
 from sklearn.ensemble import VotingClassifier
 from sklearn.decomposition import PCA
-from scipy.stats import norm, kurtosis
+from scipy.stats import norm, kurtosis, skew
 
 timeseries_length = 300
 num_of_features = 40
-num_of_svm_features = 160
+num_of_svm_features = 336
 hop_length = 512
 
 #TODO heatmap for features
@@ -55,11 +55,22 @@ def feature_statistics(feature):
         mean = np.mean(i)
         max = np.max(i)
         min = np.min(i)
+        std = np.std(i)
+        mean_gradi = np.mean(np.gradient(i))
+        std_gradi = np.std(np.gradient(i))
+        ske = skew(i)
+
         kurtosi = kurtosis(i)
         statistics.append(mean)
         statistics.append(max)
         statistics.append(min)
+        statistics.append(std)
         statistics.append(kurtosi)
+        statistics.append(ske)
+        statistics.append(mean_gradi)
+        statistics.append(std_gradi)
+
+
 
     return statistics
 
@@ -102,18 +113,13 @@ def calculate_features(song):
     zero_crossing_svm = feature_statistics(zero_crossing)
     spectral_rolloff_svm = feature_statistics(spectral_rolloff)
     spectral_flatness_svm = feature_statistics(spectral_flatness)
-    #
 
-    # svm_data.append(mfcc_svm)
-    # svm_data.append(rms_svm)
-    # svm_data.append(spectral_center_svm)
-    # svm_data.append(zero_crossing_svm)
-    # svm_data.append(spectral_rolloff_svm)
-    # svm_data.append(spectral_flatness_svm)
+    print(np.shape(mfcc_svm))
 
-    svm_data[0:160] = mfcc_svm
-    # svm_data[160:164] = spectral_center_svm
-    # svm_data[164:168] = spectral_rolloff_svm
+
+    svm_data[0:320] = mfcc_svm
+    svm_data[320:328] = spectral_center_svm
+    svm_data[328:336] = spectral_rolloff_svm
 
     data[:timeseries_length, 0:40] = mfcc.T[0:timeseries_length, :]
     # data[:timeseries_length, 40:41] = spectral_center.T[0:timeseries_length, :]
@@ -162,6 +168,7 @@ else:
                         timeseries_data, svm_data = calculate_features(f.name)
                         all_features.append(timeseries_data)
                         all_svm_features.append(svm_data)
+                        print(np.shape(all_svm_features))
                         all_labels.append(int(label))
                     song_count = song_count + 1
                 else:
@@ -210,16 +217,20 @@ if os.path.isfile('model.json'):
     loaded_model.load_weights("model.h5")
     print("Loaded model from disk")
     # evaluate loaded model on test data
-    loaded_model.compile(loss='binary_crossentropy', optimizer='rmsprop', metrics=['accuracy'])
-    # score, accuracy = loaded_model.evaluate(testData, testLabels, batch_size=256, verbose=1)
-    lstm_probs = loaded_model.predict_proba(trainData)
+    opt = Adam()
+    loaded_model.compile(loss="categorical_crossentropy", optimizer=opt, metrics=["accuracy"])    # score, accuracy = loaded_model.evaluate(testData, testLabels, batch_size=256, verbose=1)
+    lstm_probs = loaded_model.predict(testData)
+    lstm_probsss = loaded_model.predict(trainData)
+    # for i in lstm_probsss:
+    #     print(i)
+
 
     #svm
     all_svm_features = np.array(all_svm_features)
-    # all_svm_features = all_svm_features[:, 164:168]
+    all_svm_features = all_svm_features[:, :320]
     svm_labels_train = svm_labels[:800]
     svm_labels_test = svm_labels[800:]
-    clf = svm.SVC(decision_function_shape='ovr')
+    clf = svm.SVC(decision_function_shape='ovr', kernel= 'linear' )
     all_svm_features = np.squeeze(all_svm_features)
     svm_train = all_svm_features[:800]
     svm_test = all_svm_features[800:]
@@ -229,27 +240,32 @@ if os.path.isfile('model.json'):
     pred = []
     print(np.shape(svm_probs))
     print(np.shape(lstm_probs))
+    count = 0
     for (i, j) in zip(svm_probs, lstm_probs):
-        # maximum_svm = np.max(i)
-        # maximum_lstm = np.max(j)
-        # if (maximum_lstm < maximum_svm):
-        #     index_of_maximum = np.where(i == maximum_svm)
-        # else:
-        #     index_of_maximum = np.where(j == maximum_lstm)
-
-        # sum_list = [a + b for a, b in zip(i, j)]
-        # maximum = np.max(sum_list)
-        # index_of_maximum = np.where(sum_list == maximum)
-        maximum = np.max(i)
-        index_of_maximum = np.where(i == maximum)
-        print(index_of_maximum)
+        # print(i)
+        # print(j)
+        sum_list = [(a * 0) + (b ) for a, b in zip(i, j)]
+        # print(sum_list)
+        maximum = np.max(sum_list)
+        index_of_maximum = np.where(sum_list == maximum)
+        # count += 1
+        # if(count == 3 ):
+        #     break
+        # print(index_of_maximum)
         pred.append(index_of_maximum)
 
     counter = 0
+    cc = 0
     for i in range(len(pred)):
         if (pred[i] == svm_labels_test[i]):
             counter += 1
+        else:
+            # print(svm_labels_test[i], "-> ", pred[i])
+            cc += 1
+
     print(100 * counter / 200)
+    print( cc)
+
 
 
 else:
@@ -270,49 +286,42 @@ else:
 
     print("Training ...")
     batch_size = 256  # num of training examples per minibatch
-    num_epochs = 1
+    num_epochs = 50
 
     # define your model
     history = model.fit(trainData, trainLabels, validation_split=0.125, epochs=num_epochs,batch_size=batch_size, shuffle=True)
     lstm_probs = model.predict_proba(trainData)
 
-    # print("\nTesting ...")
-    # score, accuracy = model.evaluate(testData, testLabels, batch_size=batch_size, verbose=1)
-    # print("Test loss:  ", score)
-    # print("Test accuracy:  ", accuracy)
-    # print(history.history.keys())
-    # plt.plot(history.history['accuracy'])
-    # plt.plot(history.history['val_accuracy'])
-    # plt.title('model accuracy')
-    # plt.ylabel('accuracy')
-    # plt.xlabel('epoch')
-    # plt.legend(['train', 'test'], loc='upper left')
-    # plt.show()
+    print("\nTesting ...")
+    score, accuracy = model.evaluate(testData, testLabels, batch_size=batch_size, verbose=1)
+    print("Test loss:  ", score)
+    print("Test accuracy:  ", accuracy)
+    print(history.history.keys())
+    plt.plot(history.history['accuracy'])
+    plt.plot(history.history['val_accuracy'])
+    plt.title('model accuracy')
+    plt.ylabel('accuracy')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'test'], loc='upper left')
+    plt.show()
 
     ####################################SVM
-    print(np.shape(all_svm_features))
     all_svm_features = np.array(all_svm_features)
+    all_svm_features = all_svm_features[:, :320]
     svm_labels_train = svm_labels[:800]
     svm_labels_test = svm_labels[800:]
-    clf = svm.SVC(decision_function_shape='ovr')
+    clf = svm.SVC(decision_function_shape='ovr', kernel= 'linear' )
     all_svm_features = np.squeeze(all_svm_features)
     svm_train = all_svm_features[:800]
     svm_test = all_svm_features[800:]
     clf.fit(svm_train, svm_labels_train)
 
     svm_probs = clf.decision_function(svm_test)
-    pred=[]
-    print(np.shape(svm_probs))
-    print(np.shape(lstm_probs))
-    for (i, j) in zip(svm_probs, lstm_probs):
-        # maximum_svm = np.max(i)
-        # maximum_lstm = np.max(j)
-        # if (maximum_lstm < maximum_svm):
-        #     index_of_maximum = np.where(i == maximum_svm)
-        # else:
-        #     index_of_maximum = np.where(j == maximum_lstm)
+    pred = []
 
-        sum_list = [a + b for a, b in zip(i, j)]
+    for (i, j) in zip(svm_probs, lstm_probs):
+
+        sum_list = [(a * 0) + (b ) for a, b in zip(i, j)]
         maximum = np.max(sum_list)
         index_of_maximum = np.where(sum_list == maximum)
         print(index_of_maximum)
