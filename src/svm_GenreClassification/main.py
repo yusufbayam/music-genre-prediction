@@ -11,39 +11,11 @@ from tensorflow.python.keras.models import load_model, model_from_json
 from tensorflow.python.keras.utils.np_utils import to_categorical
 import matplotlib.pyplot as plt
 from sklearn import preprocessing
-from sklearn.decomposition import PCA
 
 timeseries_length = 128
 num_of_features = 40
 hop_length = 512
 
-#TODO heatmap for features
-#TODO Sliding window
-
-# def calculate_PCA(data):
-#     temp = []
-#     print(np.shape(data))
-#     data = arrange_shape(data)
-#     print(np.shape(data))
-#
-#     pca = PCA(n_components=64)
-#     for i in data:
-#         pri_comp = pca.fit_transform(i)
-#         temp.append(pri_comp)
-#     return arrange_shape(temp)
-
-
-# def arrange_shape(data):
-#     temp1 = []
-#     temp2 = []
-#     data = np.array(data)
-#     for i in range(data.shape[1]):
-#         for k in range(data.shape[0]):
-#             temp1.append(data[k, i, :])
-#
-#         temp2.append(temp1)
-#         temp1 = []
-#     return np.array(temp2)
 
 def calculate_features(song):
     y, sr = librosa.load(song)
@@ -54,45 +26,8 @@ def calculate_features(song):
     mfcc = librosa.feature.mfcc(
         y=y, sr=sr, n_mfcc=40
     )
-    spectral_center = librosa.feature.spectral_centroid(
-        y=y, sr=sr, hop_length=hop_length
-    )
-    chroma = librosa.feature.chroma_stft(y=y, sr=sr, hop_length=hop_length)
-    spectral_contrast = librosa.feature.spectral_contrast(
-        y=y, sr=sr, hop_length=hop_length
-    )
-    # cqt = np.abs(librosa.cqt(y, sr=sr, hop_length=512, bins_per_octave=12, n_bins=7 * 12, tuning=None))
-    # chroma_cqt = librosa.feature.chroma_cqt(C=cqt, n_chroma=12, n_octaves=7)
-    # chroma_cens = librosa.feature.chroma_cens(C=cqt, n_chroma=12, n_octaves=7)
-
-    stft = np.abs(librosa.stft(y, n_fft=2048, hop_length=hop_length))
-    rmse = librosa.feature.rms(S=stft)
-
-    # tonnetz = librosa.feature.tonnetz(chroma=chroma_cens)
-
-    zero_crossing = librosa.feature.zero_crossing_rate(y=y)
-
-    spectral_rolloff = librosa.feature.spectral_rolloff(y=y, sr=sr)
-
-    spectral_bandwith = librosa.feature.spectral_bandwidth(y=y, sr=sr)
-
-    spectral_flatness = librosa.feature.spectral_flatness(y=y)
-
-    melspectrogram = librosa.feature.melspectrogram(y=y, sr=sr)
 
     data[:timeseries_length, 0:40] = mfcc.T[0:timeseries_length, :]
-    # data[:timeseries_length, 40:41] = spectral_center.T[0:timeseries_length, :]
-    # data[:timeseries_length, 41:53] = chroma.T[0:timeseries_length, :]
-    # data[:timeseries_length, 53:60] = spectral_contrast.T[0:timeseries_length, :]
-    # data[:timeseries_length, 60:72] = chroma_cqt.T[0:timeseries_length, :]
-    # data[:timeseries_length, 72:84] = chroma_cens.T[0:timeseries_length, :]
-    # data[:timeseries_length, 60:61] = rmse.T[0:timeseries_length, :]
-    # data[:timeseries_length, 61:67] = tonnetz.T[0:timeseries_length, :]
-    # data[:timeseries_length, 61:62] = zero_crossing.T[0:timeseries_length, :]
-    # data[:timeseries_length, 62:63] = spectral_rolloff.T[0:timeseries_length, :]
-    # data[:timeseries_length, 63:64] = spectral_bandwith.T[0:timeseries_length, :]
-    # data[:timeseries_length, 64:65] = spectral_flatness.T[0:timeseries_length, :]
-    #data[:timeseries_length, 95:223] = melspectrogram.T[0:timeseries_length, :]
 
     return data
 
@@ -209,4 +144,3 @@ else:
         json_file.write(model_json)
     model.save_weights("model.h5")
     print("Saved model to disk")
-
